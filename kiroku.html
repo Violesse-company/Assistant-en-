@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assistant weight calculation game (recording mode only)</title>
+<style>
+body { font-family: 'Segoe UI'; text-align: center; background: #222; color: #fff; margin:0; padding:0; }
+h1 { font-size: clamp(1.2rem,4vw,2rem); margin-top:10px; }
+h2 { font-size: clamp(1rem,3.5vw,1.5rem); margin:5px; color: #FFD700; }
+button { background:#28a745; color:#fff; border:none; padding:12px 24px; border-radius:10px; cursor:pointer; font-size:clamp(1rem,3vw,1.2rem); margin:10px; }
+button:hover { background:#218838; }
+.plates, .selected-area { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-inline:auto; max-width:600px; }
+.plate, .selected-plate { border-radius:50%; width:clamp(60px,18vw,80px); height:clamp(60px,18vw,80px); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; transition:transform 0.2s; user-select:none; flex-direction:column; }
+.plate:active { transform: scale(0.9); }
+.selected-plate { width:clamp(50px,15vw,70px); height:clamp(50px,15vw,70px); font-size:clamp(0.8rem,3vw,1rem); }
+#bar,#target,#result,#progress { font-size:clamp(1rem,3.5vw,1.3rem); margin:5px; }
+#scoreDisplay { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#333; padding:30px; border-radius:20px; font-size:clamp(1rem,4vw,1.8rem); text-align:center; z-index:1000; }
+#progress { position:fixed; top:10px; left:10px; }
+#practiceBtn { position: fixed; bottom: 10px; right: 10px; }
+#setumeiBtn { position: fixed; bottom: 10px; left: 10px; padding: 5px 5px; font-size: clamp(1rem,3vw,1.2rem); border-radius: 10px; }
+#rankingBtn { position: fixed; bottom: 10px; left: 130px; padding: 5px 5px; font-size: clamp(1rem,3vw,1.2rem); border-radius: 10px; }
+
+</style>
+</head>
+<body>
+
+<h1>🏋️‍♂️ Recording Mode</h1>
+<p><h4></h4></p>
+<h2 id="recordModeLabel"></h2>
+<div id="progress">0 / 5</div>
+
+<h2 id="target"></h2>
+<div class="plates" id="plates"></div>
+<p id="bar">Current Total: 0kg</p>
+<p id="result"></p>
+<h3>Used Plates:</h3>
+<div class="selected-area" id="selectedArea"></div>
+
+<button id="nextBtn">Next</button>
+
+<button id="practiceBtn" onclick="location.href='index.html'">Practice Mode</button>
+
+<button id="setumeiBtn" onclick="location.href='setumei.html'">explanation</button>
+
+<button id="rankingBtn" onclick="location.href='ranking.html'">Ranking</button>
+
+
+<script>
+const plateData=[
+  {weight:25,color:'red'},
+  {weight:20,color:'blue'},
+  {weight:15,color:'yellow',textColor:'black'},
+  {weight:10,color:'green'},
+  {weight:5,color:'white',textColor:'black'},
+  {weight:2.5,color:'black'},
+  {weight:2.5,color:'silver',label:'2.5(color)'},
+  {weight:1.25,color:'#7fae7f'}
+];
+
+let selected=[],targetWeight=0;
+let recordCount=0,records=[],startTime=0;
+
+// --- 記録モード ---
+function updateProgress(){
+  document.getElementById('progress').textContent = `${recordCount} / 5`;
+}
+
+function startGame(){
+  const possibleWeights=[];
+  for(let w=25;w<=300;w+=2.5) possibleWeights.push(w);
+  targetWeight = possibleWeights[Math.floor(Math.random()*possibleWeights.length)];
+  selected=[];
+  document.getElementById('target').textContent=`target weight: ${targetWeight} kg`;
+  document.getElementById('result').textContent='';
+  document.getElementById('selectedArea').innerHTML='';
+  renderPlates();
+  updateTotal();
+  startTime = Date.now();
+}
+
+function renderPlates(){
+  const div=document.getElementById('plates');
+  div.innerHTML='';
+  plateData.forEach(p=>{
+    const el=document.createElement('div');
+    el.className='plate';
+    el.textContent=p.label||p.weight;
+    el.style.background=p.color;
+    el.style.color=p.textColor||'#fff';
+    el.onclick=()=>{ addPlate(p); };
+    div.appendChild(el);
+  });
+}
+
+function addPlate(p){
+  selected.push(p);
+  updateTotal();
+  renderSelected();
+}
+
+function renderSelected(){
+  const area = document.getElementById('selectedArea');
+  area.innerHTML = '';
+  selected.forEach((p,index)=>{
+    const el=document.createElement('div');
+    el.className='selected-plate';
+    el.style.background = p.color;
+    el.style.color = p.textColor || '#fff';
+    el.innerHTML = `<div>${p.label||p.weight}</div>`;
+    // タップで取り外し
+    el.onclick = () => {
+      selected.splice(index,1);
+      renderSelected();
+      updateTotal();
+    };
+    area.appendChild(el);
+  });
+}
+
+function updateTotal(){
+  const plateSum = selected.reduce((a,b)=>a+b.weight,0);
+  const total = 20 + plateSum*2;
+  document.getElementById('bar').textContent=`Current Total: ${total.toFixed(2)} kg`;
+
+  const lastPlate = selected[selected.length-1];
+  const lastPlateIsColor = lastPlate && lastPlate.color==='silver';
+  const colorInMiddle = selected.slice(0,-1).some(p=>p.color==='silver');
+  let colorBefore125=false;
+  selected.forEach((p,i)=>{
+    if(p.color==='silver' && i<selected.length-1 && selected[i+1].weight===1.25) colorBefore125=true;
+  });
+
+  if(total===targetWeight && lastPlateIsColor && !colorInMiddle && !colorBefore125){
+    document.getElementById('result').textContent="✅ Correct! (You can add color at the end)";
+  } else if(total===targetWeight && !lastPlateIsColor){
+    document.getElementById('result').textContent="⚠️ You must place a color plate at the end";
+  } else if(colorInMiddle){
+    document.getElementById('result').textContent="⚠️ You can only place a color plate at the end once";
+  } else if(colorBefore125){
+    document.getElementById('result').textContent="⚠️ You cannot place 1.25kg after a color plate";
+  } else if(total>targetWeight){
+    document.getElementById('result').textContent="❌ Over";
+  } else {
+    document.getElementById('result').textContent="";
+  }
+}
+
+// --- 記録モード操作 ---
+document.getElementById('nextBtn').onclick = ()=>{
+  const elapsedTime=(Date.now()-startTime)/1000;
+  const isCorrect=document.getElementById('result').textContent.includes('✅');
+  records.push({correct:isCorrect,time:elapsedTime});
+  recordCount++;
+  updateProgress();
+
+  if(recordCount>=5){
+    showRecordResult();
+  } else {
+    startGame();
+  }
+};
+
+function showRecordResult(){
+  const correctCount=records.filter(r=>r.correct).length;
+  const correctTimes=records.filter(r=>r.correct).map(r=>r.time.toFixed(2));
+  const correctRate=((correctCount/5)*100).toFixed(1);
+  const avgSpeed=(correctTimes.reduce((a,b)=>a+parseFloat(b),0)/correctTimes.length||0).toFixed(2);
+
+  let div=document.createElement('div'); div.id='scoreDisplay';
+  div.innerHTML=`
+    <h2>📊 End of recording</h2>
+    <p>Number of times plates were correctly added: ${correctCount}/5</p>
+    <p>Time taken to reach the correct answer (seconds): ${correctTimes.join(', ')}</p>
+    <p>Correct rate: ${correctRate}%</p>
+    <p>Average speed: ${avgSpeed} seconds</p>
+    <button id="scoreCloseBtn">Close</button>
+  `;
+  document.body.appendChild(div);
+  document.getElementById('scoreCloseBtn').onclick=()=>{
+    div.remove(); resetRecordMode();
+  }
+};
+
+function resetRecordMode(){
+  recordCount=0;
+  records=[];
+  updateProgress();
+  startGame();
+}
+
+// --- 初期化 ---
+startGame();
+</script>
+</body>
+</html>
